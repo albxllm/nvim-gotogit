@@ -1,4 +1,4 @@
--- gitlink.nvim - Open current line in browser
+-- gotogit.nvim - Open current line in browser
 local M = {}
 
 local function cmd(args, cwd)
@@ -9,14 +9,9 @@ end
 local function get_remote_url(cwd)
   local url = cmd({ "git", "-C", cwd, "remote", "get-url", "origin" })
   if not url then return nil end
-  -- SSH -> HTTPS
   url = url:gsub("^git@([^:]+):", "https://%1/")
   url = url:gsub("%.git$", "")
   return url
-end
-
-local function get_branch(cwd)
-  return cmd({ "git", "-C", cwd, "branch", "--show-current" })
 end
 
 local function get_root(cwd)
@@ -32,18 +27,14 @@ function M.open()
   local cwd = vim.fn.fnamemodify(file, ":h")
   
   local root = get_root(cwd)
-  if not root then return end -- fail silently
+  if not root then return end
   
   local remote = get_remote_url(cwd)
   if not remote then return end
   
-  -- Get relative path
   local rel_path = file:sub(#root + 2)
+  local ref = get_commit(cwd) or "main"
   
-  -- Use commit for permalink (stable), fallback to branch
-  local ref = get_commit(cwd) or get_branch(cwd) or "main"
-  
-  -- Get line (or range in visual mode)
   local start_line, end_line
   local mode = vim.fn.mode()
   if mode == "v" or mode == "V" or mode == "\22" then
@@ -54,29 +45,20 @@ function M.open()
     end_line = start_line
   end
   
-  -- Build URL
   local url
-  if remote:match("github%.com") then
-    url = string.format("%s/blob/%s/%s#L%d", remote, ref, rel_path, start_line)
-    if end_line ~= start_line then
-      url = url .. "-L" .. end_line
-    end
-  elseif remote:match("gitlab%.com") then
+  if remote:match("gitlab%.com") then
     url = string.format("%s/-/blob/%s/%s#L%d", remote, ref, rel_path, start_line)
     if end_line ~= start_line then
       url = url .. "-" .. end_line
     end
-  elseif remote:match("bitbucket%.org") then
-    url = string.format("%s/src/%s/%s#lines-%d", remote, ref, rel_path, start_line)
-    if end_line ~= start_line then
-      url = url .. ":" .. end_line
-    end
   else
-    -- Generic fallback (GitHub-style)
+    -- GitHub (default)
     url = string.format("%s/blob/%s/%s#L%d", remote, ref, rel_path, start_line)
+    if end_line ~= start_line then
+      url = url .. "-L" .. end_line
+    end
   end
   
-  -- Open in $BROWSER or fallback
   local browser = os.getenv("BROWSER") or (vim.fn.has("mac") == 1 and "open" or "xdg-open")
   vim.fn.jobstart({ browser, url }, { detach = true })
 end
@@ -89,7 +71,7 @@ function M.setup(opts)
     vim.keymap.set({ "n", "v" }, key, M.open, { desc = "Open line in git remote" })
   end
   
-  vim.api.nvim_create_user_command("GitLink", M.open, { range = true })
+  vim.api.nvim_create_user_command("GotoGit", M.open, { range = true })
 end
 
 return M
