@@ -59,8 +59,13 @@ function M.open()
     end
   end
   
-  local browser = os.getenv("BROWSER") or (vim.fn.has("mac") == 1 and "open" or "xdg-open")
-  vim.fn.jobstart({ browser, url }, { detach = true })
+  local is_mac = vim.fn.has("mac") == 1
+  if is_mac then
+    vim.fn.jobstart({ "open", url }, { detach = true })
+  else
+    local browser = os.getenv("BROWSER") or "xdg-open"
+    vim.fn.jobstart({ browser, url }, { detach = true })
+  end
 end
 
 function M.setup(opts)
